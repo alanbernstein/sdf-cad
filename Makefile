@@ -1,3 +1,5 @@
+run: all
+	./sdf-cad
 all:
 	go build
 clean:

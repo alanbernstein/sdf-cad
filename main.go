@@ -1,25 +1,48 @@
 package main
 
 import (
+	"os"
+
 	. "github.com/deadsy/sdfx/sdf"
 )
 
 func main() {
-	RenderSTL(miniFanBracket(), 200, "stl/fanBracket.stl")
+	defaultModel := "mackeyboard"
+	var model string
+	if len(os.Args) == 1 {
+		model = defaultModel
+	} else {
+		model = os.Args[1]
+	}
+
+	switch model {
+	case "minifan":
+		RenderSTL(miniFanBracket(), 200, "stl/fanBracket.stl")
+	case "audiojack":
+		RenderSTL(audioJackBracket(), 200, "stl/audioJackBracket.stl")
+	case "mackeyboard":
+		RenderSTL(macKeyboardClamp2(), 200, "stl/macKeyboardClamp.stl")
+	case "test":
+		RenderSTL(test(), 200, "stl/test.stl")
+		RenderSTL(box_test(), 200, "stl/box_test.stl")
+	}
 }
 
 func miniFanBracket() SDF3 {
+	// figured this out from sdfx example function cc18c
+
 	round := 1.5
+	d1 := 5.0 // diameter of fan leg
 
 	//body_3d := Cylinder3D(20, 26.3, 0)
-	b1 := Box3D(V3{15, 45, 5}, round) // TODO set vs code's go.vetFlags to "-composites" to disable this check
+	b1 := Box3D(V3{15, 45, 5}, round)
 	//b2 := Tz(Box3D(V3{15, 15, 10}, round), 2.5)
 	b2 := Ry(Cylinder3D(15, 7.5, round), 90)
 	b2 = Cut3D(b2, V3{0, 0, 0}, V3{0, 0, 1})
 
-	hole1 := Ty(Cylinder3D(10, 2.5, 0), 15)  // screw hole 1
-	hole2 := Ty(Cylinder3D(10, 2.5, 0), -15) // screw hole 2
-	hole3 := Ry(Cylinder3D(20, 2.5, 0), 90)  // leg hole
+	hole1 := Ty(Cylinder3D(10, 1.5, 0), 15)  // screw hole 1
+	hole2 := Ty(Cylinder3D(10, 1.5, 0), -15) // screw hole 2
+	hole3 := Ry(Cylinder3D(20, d1/2, 0), 90) // leg hole
 	hole3b := Tz(Box3D(V3{15, 5, 5}, 0), -2.5)
 	hole3 = U(hole3, hole3b)
 
@@ -29,6 +52,136 @@ func miniFanBracket() SDF3 {
 	body = D(body, hole2)
 	body = D(body, hole3)
 	return body
+}
+
+func audioJackBracket() SDF3 {
+	d1 := 9.5  // jack outer diameter
+	d2 := 6.0  // jack metal diameter
+	l1 := 35.0 // full length of plastic jack
+	//l2 := 20.0 // length of plastic jack before slant
+	//w := 4.5   // width of thin part of plastic jack
+
+	jack := Cylinder3D(l1, d1/2, 0)
+	b1 := Tz(Cylinder3D(15, d2/2, 0), -1)
+	jack = U(jack, b1)
+
+	return jack
+}
+
+const keyHeight = 3.0 - 0.0 // reduce print time a bit
+const keyWidth = 15.0 + 2.0
+const keyLengthShift = 39.5 + 1.0
+const keyLengthEnter = 30.0 + 1.0
+const keySpacing = 3.0 - 1.5 // 0.5 fudge
+const topThickness = 1.0
+
+const twoD = true // use 2d rounded corners
+const side = 1.0  // 1.0 for left, -1.0 for right
+
+const keyLengthDeltaHalf = side * (keyLengthShift - keyLengthEnter) / 2
+
+// Box3DR defines a 3D box with corners rounded in 2D (like a mac laptop keyboard key).
+// Extrusion is in the Z direction, outer dimensions are the same as the equivalent Box3D call
+func Box3DR(p V3, rad2 float64) SDF3 {
+	// return Box3D(p, rad2)
+	return Extrude3D(Box2D(V2{p.X, p.Y}, rad2), p.Z)
+}
+
+func macKeyboardClamp() SDF3 {
+	// simple 90-degree corners
+	boxFunc := Box3D
+	rad := 0.0
+	if twoD {
+		// interior corners rounded in 2D
+		boxFunc = Box3DR
+		rad = 1.0
+	}
+	shiftKeyNeg := T(boxFunc(V3{keyLengthShift, keyWidth, keyHeight}, rad), 0, 0, topThickness)
+	enterKeyNeg := T(boxFunc(V3{keyLengthEnter, keyWidth, keyHeight}, rad), keyLengthDeltaHalf, keyWidth+keySpacing, topThickness)
+	shiftKeyPos := T(boxFunc(V3{keyLengthShift + 2*keySpacing, keyWidth + 2*keySpacing, keyHeight}, rad), 0, 0, 0)
+	enterKeyPos := T(boxFunc(V3{keyLengthEnter + 2*keySpacing, keyWidth + 2*keySpacing, keyHeight}, rad), keyLengthDeltaHalf, keySpacing+keyWidth, 0)
+
+	fullPos := U(enterKeyPos, shiftKeyPos)
+	// fullPos.(*UnionSDF3).SetMin(PolyMin(1.0)) // blending to get rounded corner - might need to do this in 2D
+	fullCap := D(fullPos, shiftKeyNeg, enterKeyNeg)
+
+	/*
+		// TODO: add hinge extension. but i would need to integrate the clamp into the design as well...
+		cylDiam := keyHeight
+		cylLen := keyWidth + 1.5*keySpacing
+		cylOffset := (keyLengthShift + 2*keySpacing) / 2
+		hingeCylinder := Ty(Tx(Rx(Cylinder3D(cylLen, cylDiam/2, 0), 90), cylOffset), -.5)
+
+		withHinge := U(fullCap, hingeCylinder)
+		return withHinge
+	*/
+	return Rz(fullCap, 90)
+}
+
+func macKeyboardClamp2() SDF3 {
+	// defines the positive components in 2D, so the external, concave, rounded corner is defined cleanly in 2D, then extruded
+	rad2 := 1.0
+	shiftKeyNeg := T(Box3DR(V3{keyLengthShift, keyWidth, keyHeight}, rad2), 0, 0, topThickness)
+	enterKeyNeg := T(Box3DR(V3{keyLengthEnter, keyWidth, keyHeight}, rad2), keyLengthDeltaHalf, keyWidth+keySpacing, topThickness)
+	shiftKeyPos := T2(Box2D(V2{keyLengthShift + 2*keySpacing, keyWidth + 2*keySpacing}, rad2), 0, 0)
+	enterKeyPos := T2(Box2D(V2{keyLengthEnter + 2*keySpacing, keyWidth + 2*keySpacing}, rad2), keyLengthDeltaHalf, keySpacing+keyWidth)
+
+	fullPos2d := U2(enterKeyPos, shiftKeyPos)
+	fullPos2d.(*UnionSDF2).SetMin(PolyMin(rad2)) // blending to get rounded corner
+	fullPos3d := Extrude3D(fullPos2d, keyHeight)
+	fullCap := D(fullPos3d, shiftKeyNeg, enterKeyNeg)
+	fullCap = Cut3D(fullCap, V3{(keyLengthShift)/2 + keySpacing, 0, 0}, V3{-1, 0, 0}) // slice off the little blob that results from PolyMin being applied where we don't want it
+	// Cut3D(obj, passThroughPoint, normalVector)
+
+	return fullCap
+}
+
+func test() SDF3 {
+	//	a := Box3D(V3{2, 2, 2}, .5)
+	//	b := Box3D(V3{1, 1, 1}, 0)
+	//	return Difference3D(b, a)
+
+	baseBox := Box3D(V3{30, 40, 30}, 0)
+	innerBox := Offset3D(baseBox, 3)
+	outerBox := Offset3D(baseBox, 6)
+	box := Difference3D(outerBox, innerBox)
+
+	lidZ := (0.75 - 0.5) * 30
+	base := Cut3D(box, V3{0, 0, lidZ}, V3{0, 0, -1})
+	// top := Cut3D(box, V3{0, 0, lidZ}, V3{0, 0, 1})
+
+	return base
+
+}
+
+func box_test() SDF3 {
+	// error conditions:
+	// if outerRadius < wallThickness {
+	// if sizeX < outerOfs {
+	// if sizeY < outerOfs {
+	// if sizeZ < outerOfs {
+
+	const sizeX = 30.0
+	const sizeY = 40.0
+	const sizeZ = 30.0
+
+	const wallThickness = 3.0
+	const outerRadius = 6.0
+	const lidPosition = 0.75 // 0..1 position of lid on box
+
+	innerOfs := outerRadius - wallThickness
+	outerOfs := innerOfs + wallThickness
+
+	baseBox := Box3D(V3{sizeX - outerOfs, sizeY - outerOfs, sizeZ - outerOfs}, 0)
+	innerBox := Offset3D(baseBox, innerOfs)
+	outerBox := Offset3D(baseBox, outerOfs)
+	box := Difference3D(outerBox, innerBox)
+
+	lidZ := (lidPosition - 0.5) * sizeZ
+	base := Cut3D(box, V3{0, 0, lidZ}, V3{0, 0, -1})
+	// top := Cut3D(box, V3{0, 0, lidZ}, V3{0, 0, 1})
+
+	return base
 }
 
 /*
