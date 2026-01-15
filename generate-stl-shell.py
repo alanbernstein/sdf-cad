@@ -2,7 +2,7 @@ import os
 import numpy as np
 from sdf.mesh import Mesh
 
-def generate_shell(stl_fin, stl_fout, surface_offset, thickness,
+def generate_shell(stl_in, stl_fout, surface_offset, thickness,
                    voxel_size, half_width, sdf_step):
     """
     Creates a shell of constant thickness, and constant distance from surface,
@@ -16,8 +16,8 @@ def generate_shell(stl_fin, stl_fout, surface_offset, thickness,
     
     Voxel size should be <= thickness/3
     """
-    shape = Mesh.from_file(stl_fin)
-    f = shape.sdf(voxel_size=voxel_size, half_width=half_width)
+    base_mesh = Mesh.from_file(stl_fin)
+    f = base_mesh.sdf(voxel_size=voxel_size, half_width=half_width)
     outer = f.dilate(thickness+surface_offset)
     inner = f.dilate(surface_offset)
     shell = outer - inner
@@ -28,7 +28,8 @@ def generate_shell(stl_fin, stl_fout, surface_offset, thickness,
 pth = os.getenv("SYNC") + "/m2/3dprint/pro-controller/"
 # High-quality mesh from https://sketchfab.com/3d-models/switch-pro-controller-5e09103601b04f469ca6dbe5cfde00d9
 # Units are inches. Decimated and exported to STL in Blender.
-stl_fin = pth + "pro-controller-decimated0.1.stl"
-stl_fout = pth + "procon-shell0.1.stl"
+stl_fin = pth + "pro-controller-joycons-hulled-decimated0.1.stl"
 
-generate_shell(stl_fin, stl_fout, 0.5/25.4, 3.0/25.4, 0.1, 10, 0.1)
+
+# generate_shell(base_mesh, pth + "procon-shell0.1.stl", 0.5/25.4, 3.0/25.4, 0.1, 10, 0.1)  # 34k triangles. works, but can't make thickness smaller
+generate_shell(stl_fin, pth + "procon-dec0.1-shell0.1-vox.05x.stl", 0.5/25.4, 2.0/25.4, 0.05, 10, 0.05) # 134k triangles, works down to 2mm thickness
