@@ -21,9 +21,17 @@ Then `python generate-stl-shell.py`, or create and run other python files, witho
 ## OpenSCAD
 Render and export `procon-top-shell.scad`
 
-# Example
+# Examples
 
-Nintendo Switch Pro Controller shell cover
+## UHK mount
+
+![uhk-diagram](images/uhk-diagram.png)
+
+
+![uhk-print](images/uhk-print.jpg)
+
+
+## Nintendo Switch Pro Controller shell cover
 
 ![procon-render](images/procon-shell-render.png)
 

@@ -16,7 +16,12 @@ openvdb:
 	$(MM) install -y -n $(ENV) -c conda-forge openvdb
 
 sdf:
-	$(MM) run -n $(ENV) pip install git+https://github.com/fogleman/sdf.git
+	# $(MM) run -n $(ENV) pip install git+https://github.com/fogleman/sdf.git
+	$(MM) run -n $(ENV) pip install git+https://github.com/alanbernstein/sdf.git
+
+sdf-path:
+	FILE=$$(python -c "import sdf, pathlib; print(pathlib.Path(sdf.__file__).parent / \"mesh.py\")");
+	echo "$$FILE"
 
 sdf-patch-vdb:
 	./bin/micromamba run -n sdf bash -c '\
